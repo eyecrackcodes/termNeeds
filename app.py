@@ -169,14 +169,24 @@ with tab1:
         num_children = st.number_input("Number of children for college", min_value=0, max_value=10, value=0)
         
         if num_children > 0:
-            for i in range(num_children):
-                with st.expander(f"Child {i+1}"):
-                    annual_cost = st.number_input(f"Annual college cost for Child {i+1} ($)", min_value=0.0, value=0.0, key=f"cost_{i}")
-                    years_college = st.number_input(f"Number of years for Child {i+1}", min_value=0, max_value=10, value=4, key=f"years_{i}")
-                    child_total = annual_cost * years_college
-                    college_costs.append(child_total)
-                    st.write(f"Total for Child {i+1}: ${child_total:,.2f}")
-                    total_college_cost += child_total
+            for i in range(int(num_children)):
+                col1, col2 = st.columns(2)
+                with col1:
+                    annual_cost = st.number_input(f"Annual college cost for Child {i+1} ($)", 
+                                                min_value=0.0, 
+                                                value=15566.0,  # Default to public cost
+                                                key=f"cost_{i}")
+                with col2:
+                    years_college = st.number_input(f"Years of college for Child {i+1}", 
+                                                  min_value=1, 
+                                                  max_value=8, 
+                                                  value=4, 
+                                                  key=f"years_{i}")
+                
+                child_total = annual_cost * years_college
+                college_costs.append(child_total)
+                st.write(f"Total for Child {i+1}: ${child_total:,.2f}")
+                total_college_cost += child_total
         
         line7 = total_college_cost
         st.write(f"Total College Costs: ${line7:,.2f}")
