@@ -3,6 +3,7 @@ import datetime
 import base64
 from fpdf import FPDF
 import io
+import math
 
 st.set_page_config(page_title="Life Insurance Calculator", layout="wide")
 
@@ -28,6 +29,10 @@ def create_pdf(data):
     pdf.cell(50, 8, f"Client Name: {data['client_name']}", ln=True)
     pdf.cell(50, 8, f"Date: {data['date']}", ln=True)
     pdf.cell(50, 8, f"Beneficiary: {data['beneficiary']}", ln=True)
+    
+    # Add inflation info if it was used
+    if data['inflation_used']:
+        pdf.cell(50, 8, f"Inflation Rate: {data['inflation_rate']}%", ln=True)
     pdf.ln(5)
     
     # Income Needs
@@ -76,12 +81,32 @@ def create_pdf(data):
     
     return pdf.output(dest="S").encode("latin-1")
 
+# Function to calculate inflation-adjusted value
+def calculate_with_inflation(base_value, inflation_rate, years):
+    return base_value * math.pow(1 + (inflation_rate/100), years)
+
 # Create tabs for better organization
 tab1, tab2 = st.tabs(["Calculator", "About"])
 
 with tab1:
     st.title("Life Insurance Calculator")
     st.write("Complete the fields below to estimate your life insurance needs.")
+    
+    # Add inflation option
+    use_inflation = st.checkbox("Factor in inflation (based on Consumer Price Index)", value=False)
+    
+    if use_inflation:
+        inflation_rate = st.slider(
+            "Annual inflation rate (%)", 
+            min_value=1.0, 
+            max_value=10.0, 
+            value=2.5, 
+            step=0.1,
+            help="The Consumer Price Index (CPI) is used as the inflation metric, as it measures general price level changes that affect cost of living."
+        )
+        st.info(f"Calculations will be adjusted for inflation at {inflation_rate}% annually.")
+    else:
+        inflation_rate = 0.0
     
     # Use expanders for each section to make the UI cleaner
     with st.expander("Client Information", expanded=True):
@@ -138,7 +163,19 @@ with tab1:
         )
         
         factor = year_factors[years]
-        line4 = line3 * factor
+        
+        # Apply inflation if selected
+        if use_inflation:
+            # Calculate the average annual income needed over the period with inflation
+            inflated_line3 = 0
+            for year in range(1, years + 1):
+                inflated_line3 += calculate_with_inflation(line3, inflation_rate, year)
+            average_inflated_line3 = inflated_line3 / years
+            line4 = average_inflated_line3 * factor
+            st.write(f"Average annual income needed (with inflation): ${average_inflated_line3:,.2f}")
+        else:
+            line4 = line3 * factor
+            
         st.write(f"Factor for {years} years: {factor}")
         st.write(f"Funds needed (line 3 × factor): ${line4:,.2f}")
     
@@ -182,8 +219,21 @@ with tab1:
                                                   max_value=8, 
                                                   value=4, 
                                                   key=f"years_{i}")
+                    # When does college start for this child?
+                    years_until_college = st.number_input(f"Years until Child {i+1} starts college", 
+                                                       min_value=0, 
+                                                       max_value=25, 
+                                                       value=0,
+                                                       key=f"until_college_{i}")
                 
-                child_total = annual_cost * years_college
+                # Apply inflation to college costs if selected
+                if use_inflation and years_until_college > 0:
+                    inflated_annual_cost = calculate_with_inflation(annual_cost, inflation_rate, years_until_college)
+                    st.write(f"Inflated annual cost in {years_until_college} years: ${inflated_annual_cost:,.2f}")
+                    child_total = inflated_annual_cost * years_college
+                else:
+                    child_total = annual_cost * years_college
+                
                 college_costs.append(child_total)
                 st.write(f"Total for Child {i+1}: ${child_total:,.2f}")
                 total_college_cost += child_total
@@ -265,6 +315,10 @@ with tab1:
         
         st.metric("Total assets", f"${line12:,.2f}")
     
+    # Show inflation information in the results if used
+    if use_inflation:
+        st.info(f"Results include inflation adjusted at {inflation_rate}% annually based on the Consumer Price Index (CPI).")
+    
     st.subheader("Result")
     if line13 > 0:
         st.success(f"Additional life insurance needed: ${line13:,.2f}")
@@ -279,6 +333,8 @@ with tab1:
             'client_name': client_name,
             'date': date.strftime('%Y-%m-%d'),
             'beneficiary': beneficiary,
+            'inflation_used': use_inflation,
+            'inflation_rate': inflation_rate if use_inflation else 0,
             'line1': line1,
             'line2': line2,
             'line3': line3,
@@ -311,6 +367,10 @@ with tab2:
     4. Enter your current assets
     5. Get an instant calculation of your life insurance needs
     6. Generate and download a PDF report
+    
+    ### Inflation Adjustment
+    The calculator allows you to factor in inflation using the Consumer Price Index (CPI) as the inflation metric. 
+    When enabled, this will adjust future expenses and income needs based on the selected inflation rate.
     
     ### Sending to Clients
     You can send the link to this app to your clients for them to complete themselves. 
